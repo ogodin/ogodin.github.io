@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Plan de classe</title>
+        <link rel="stylesheet" href="./styles.css" />
+    </head>
+    <body class="view-page">
+        <main class="view-shell">
+            <header class="view-header">
+                <!--<p class="eyebrow">Projection</p>-->
+                <h1>Plan de classe</h1>
+                <p id="viewSubtitle" class="view-subtitle"></p>
+            </header>
+
+            <div class="orientation-marker">AVANT</div>
+            <section id="viewGrid" class="plan-grid view-grid"></section>
+            <div class="orientation-marker orientation-marker-bottom">
+                ARRIÈRE
+            </div>
+        </main>
+
+        <script>
+            const payload = JSON.parse(
+                localStorage.getItem("classroom-plan-view") || "{}",
+            );
+            const subtitle = document.getElementById("viewSubtitle");
+            const grid = document.getElementById("viewGrid");
+
+            subtitle.textContent =
+                payload.courseTitle || "Aucun cours sélectionné";
+            grid.style.gridTemplateColumns =
+                payload.gridTemplateColumns || "repeat(8, minmax(92px, 1fr))";
+
+            (payload.seats || []).forEach((seat) => {
+                const cell = document.createElement("div");
+                cell.className = `seat seat--${seat.state || "normal"}`;
+                cell.style.gridColumn = String(seat.displayCol + 1);
+                cell.style.gridRow = String(seat.row + 1);
+                cell.textContent = seat.name || "";
+                grid.appendChild(cell);
+            });
+        </script>
+    </body>
+</html>

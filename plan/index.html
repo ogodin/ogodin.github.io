@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Générateur de plan de classe</title>
+        <link rel="stylesheet" href="./styles.css" />
+    </head>
+    <body class="is-locked">
+        <main id="unlockOverlay" class="unlock-shell">
+            <form id="unlockForm" class="panel-card unlock-card">
+                <p class="eyebrow">Accès protégé</p>
+                <h1>Générateur de plan de classe</h1>
+                <p class="hero-copy">
+                    Entrez le code secret pour déchiffrer les données.
+                </p>
+
+                <label class="field">
+                    <span>Code secret</span>
+                    <input
+                        id="secretInput"
+                        type="password"
+                        autocomplete="current-password"
+                        required
+                    />
+                </label>
+
+                <div class="button-row">
+                    <button
+                        id="unlockBtn"
+                        class="primary-button"
+                        type="submit"
+                    >
+                        Déverrouiller
+                    </button>
+                    <p id="statusBadge" class="status-badge">Verrouillé</p>
+                </div>
+
+                <p id="unlockError" class="unlock-error" aria-live="polite"></p>
+            </form>
+        </main>
+
+        <div class="page-shell">
+            <aside class="control-panel">
+                <div class="panel-card hero-card">
+                    <p class="eyebrow">Séminaire de Sherbrooke</p>
+                    <h1>Générateur de plan de classe</h1>
+                </div>
+
+                <div class="panel-card student-card">
+                    <div class="section-head">
+                        <h2>Étudiants</h2>
+                        <p id="studentCount" class="section-meta"></p>
+                    </div>
+
+                    <label class="field student-list-field">
+                        <!--<span>Liste des étudiants</span>-->
+                        <textarea
+                            id="namesInput"
+                            rows="15"
+                            placeholder="Un nom par ligne"
+                        ></textarea>
+                    </label>
+
+                    <div class="button-row">
+                        <button
+                            id="generateBtn"
+                            class="primary-button"
+                            type="button"
+                        >
+                            Générer le plan
+                        </button>
+                        <button
+                            id="blockModeBtn"
+                            class="secondary-button"
+                            type="button"
+                        >
+                            Exclure des places
+                        </button>
+                    </div>
+
+                    <div class="button-row">
+                        <button
+                            id="fullscreenBtn"
+                            class="secondary-button"
+                            type="button"
+                        >
+                            Plan plein écran
+                        </button>
+                        <button
+                            id="exportBtn"
+                            class="secondary-button"
+                            type="button"
+                        >
+                            Exporter le plan (PNG)
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="plan-panel">
+                <section class="panel-card data-card">
+                    <div class="section-head data-card-head">
+                        <h2>Données</h2>
+                        <button
+                            id="resetFiltersBtn"
+                            class="ghost-button"
+                            type="button"
+                        >
+                            Réinitialiser
+                        </button>
+                    </div>
+
+                    <div class="data-card-grid">
+                        <label class="field data-field">
+                            <span>Enseignant</span>
+                            <select id="teacherSelect"></select>
+                        </label>
+
+                        <label class="field data-field">
+                            <span>Surveillant</span>
+                            <select id="proctorSelect"></select>
+                        </label>
+
+                        <label class="field data-field">
+                            <span>Cours</span>
+                            <select id="courseSelect"></select>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="panel-card plan-card" id="planCard">
+                    <div class="plan-header">
+                        <div>
+                            <h2>Plan de classe</h2>
+                            <p id="planSubtitle" class="plan-subtitle">
+                                Aucun cours sélectionné
+                            </p>
+                        </div>
+                        <div class="plan-stats">
+                            <div>
+                                <span class="stat-label">Places</span>
+                                <strong id="seatCount">0</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="orientation-marker">AVANT</div>
+
+                    <div class="plan-surface">
+                        <div id="planGrid" class="plan-grid"></div>
+                    </div>
+
+                    <div class="orientation-marker orientation-marker-bottom">
+                        ARRIÈRE
+                    </div>
+
+                    <p class="plan-help">
+                        En mode normal, cliquez un étudiant pour le sélectionner
+                        puis cliquez une autre place pour le déplacer. En mode
+                        exclusion, cliquez une place pour la bloquer ou la
+                        libérer.
+                    </p>
+                </section>
+            </main>
+
+            <section class="panel-card layout-card full-width-panel">
+                <div class="layout-card-head">
+                    <div class="section-head">
+                        <h2>Disposition</h2>
+                        <p class="section-meta">
+                            Les changements régénèrent immédiatement le plan
+                            courant.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="layout-card-grid">
+                    <label class="field layout-field layout-field-wide">
+                        <span>Local</span>
+                        <select id="roomSelect"></select>
+                    </label>
+
+                    <label class="toggle-field layout-toggle">
+                        <input id="middleCheckbox" type="checkbox" />
+                        <span>Couloir central</span>
+                    </label>
+
+                    <label class="field layout-field">
+                        <span>Rangées gauche</span>
+                        <input
+                            id="leftRowsInput"
+                            type="number"
+                            min="1"
+                            max="20"
+                        />
+                    </label>
+                    <label class="field layout-field">
+                        <span>Colonnes gauche</span>
+                        <input
+                            id="leftColsInput"
+                            type="number"
+                            min="1"
+                            max="20"
+                        />
+                    </label>
+                    <label class="field layout-field">
+                        <span>Rangées droite</span>
+                        <input
+                            id="rightRowsInput"
+                            type="number"
+                            min="0"
+                            max="20"
+                        />
+                    </label>
+                    <label class="field layout-field">
+                        <span>Colonnes droite</span>
+                        <input
+                            id="rightColsInput"
+                            type="number"
+                            min="0"
+                            max="20"
+                        />
+                    </label>
+                </div>
+            </section>
+        </div>
+
+        <script src="./data/encrypted-data.js"></script>
+        <script src="./app.js"></script>
+    </body>
+</html>
