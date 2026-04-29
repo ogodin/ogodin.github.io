@@ -529,8 +529,21 @@ button.seat {
     margin-bottom: 0;
 }
 
+.layout-field > span {
+    display: flex;
+    align-items: end;
+    min-height: 2.3em;
+}
+
 .layout-field-wide {
     min-width: 0;
+}
+
+.layout-field input,
+#roomSelect {
+    height: 46px;
+    padding-top: 0;
+    padding-bottom: 0;
 }
 
 .layout-toggle {
