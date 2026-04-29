@@ -9,14 +9,14 @@
     <body class="is-locked">
         <main id="unlockOverlay" class="unlock-shell">
             <form id="unlockForm" class="panel-card unlock-card">
-                <p class="eyebrow">Accès protégé</p>
+                <p class="eyebrow">Séminaire de Sherbrooke</p>
                 <h1>Générateur de plan de classe</h1>
                 <p class="hero-copy">
-                    Entrez le code secret pour déchiffrer les données.
+                    Entrez le code fourni afin d'accéder à la plateforme.
                 </p>
 
                 <label class="field">
-                    <span>Code secret</span>
+                    <!--<span>Code secret</span>-->
                     <input
                         id="secretInput"
                         type="password"
@@ -26,17 +26,15 @@
                 </label>
 
                 <div class="button-row">
-                    <button
-                        id="unlockBtn"
-                        class="primary-button"
-                        type="submit"
-                    >
+                    <button id="unlockBtn" class="primary-button" type="submit">
                         Déverrouiller
                     </button>
-                    <p id="statusBadge" class="status-badge">Verrouillé</p>
+                    <p
+                        id="unlockError"
+                        class="unlock-error"
+                        aria-live="polite"
+                    ></p>
                 </div>
-
-                <p id="unlockError" class="unlock-error" aria-live="polite"></p>
             </form>
         </main>
 

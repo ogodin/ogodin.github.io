@@ -44,7 +44,6 @@ const elements = {
   secretInput: document.getElementById("secretInput"),
   unlockBtn: document.getElementById("unlockBtn"),
   unlockError: document.getElementById("unlockError"),
-  statusBadge: document.getElementById("statusBadge"),
   teacherSelect: document.getElementById("teacherSelect"),
   proctorSelect: document.getElementById("proctorSelect"),
   courseSelect: document.getElementById("courseSelect"),
@@ -105,12 +104,19 @@ async function deriveDataKey(secret, salt, iterations) {
 
 async function decryptEncryptedData(secret) {
   const encryptedData = window.CLASSROOM_PLAN_ENCRYPTED_DATA;
-  if (!encryptedData || encryptedData.version !== REQUIRED_ENCRYPTED_DATA_VERSION) {
-    throw new Error("Le fichier de données chiffrées est absent ou incompatible.");
+  if (
+    !encryptedData ||
+    encryptedData.version !== REQUIRED_ENCRYPTED_DATA_VERSION
+  ) {
+    throw new Error(
+      "Le fichier de données chiffrées est absent ou incompatible.",
+    );
   }
 
   if (!window.crypto?.subtle) {
-    throw new Error("Le navigateur ne permet pas le déchiffrement Web Crypto dans ce contexte.");
+    throw new Error(
+      "Le navigateur ne permet pas le déchiffrement Web Crypto dans ce contexte.",
+    );
   }
 
   const salt = base64ToBytes(encryptedData.salt);
@@ -175,7 +181,8 @@ function parseDelimited(text, delimiter = ";") {
   }
 
   const headers = rows[0].map((header) => header.trim().replace(/^\ufeff/, ""));
-  return rows.slice(1)
+  return rows
+    .slice(1)
     .filter((values) => values.some((value) => value.trim() !== ""))
     .map((values) => {
       const record = {};
@@ -190,7 +197,11 @@ function loadRoomConfigurations(data) {
   const configurations = { [LOCAL_PLACEHOLDER]: null };
 
   Object.entries(data || {}).forEach(([name, config]) => {
-    if (name === LOCAL_PLACEHOLDER || !config || !Array.isArray(config.gauche)) {
+    if (
+      name === LOCAL_PLACEHOLDER ||
+      !config ||
+      !Array.isArray(config.gauche)
+    ) {
       return;
     }
 
@@ -233,7 +244,10 @@ function buildModel(surveillanceText, teachersText) {
       return;
     }
 
-    if (!courseTitles[courseCode] || courseTitle.length >= courseTitles[courseCode].length) {
+    if (
+      !courseTitles[courseCode] ||
+      courseTitle.length >= courseTitles[courseCode].length
+    ) {
       courseTitles[courseCode] = courseTitle;
     }
 
@@ -247,7 +261,9 @@ function buildModel(surveillanceText, teachersText) {
   });
 
   teacherRows.forEach((row) => {
-    const courseCode = normalizeCourseCode(row["Numéro du cours"] || row["Numero du cours"] || "");
+    const courseCode = normalizeCourseCode(
+      row["Numéro du cours"] || row["Numero du cours"] || "",
+    );
     const courseTitle = (row["Titre du cours"] || "").trim();
     const titulaires = (row.Titulaires || "").trim();
 
@@ -255,16 +271,23 @@ function buildModel(surveillanceText, teachersText) {
       return;
     }
 
-    if (!courseTitles[courseCode] || courseTitle.length >= courseTitles[courseCode].length) {
+    if (
+      !courseTitles[courseCode] ||
+      courseTitle.length >= courseTitles[courseCode].length
+    ) {
       courseTitles[courseCode] = courseTitle;
     }
 
-    titulaires.split(";").map((name) => name.trim()).filter(Boolean).forEach((teacher) => {
-      if (!teacherData[teacher]) {
-        teacherData[teacher] = new Set();
-      }
-      teacherData[teacher].add(courseCode);
-    });
+    titulaires
+      .split(";")
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .forEach((teacher) => {
+        if (!teacherData[teacher]) {
+          teacherData[teacher] = new Set();
+        }
+        teacherData[teacher].add(courseCode);
+      });
   });
 
   const coursesByProctor = {};
@@ -316,42 +339,63 @@ function buildModel(surveillanceText, teachersText) {
 function getVisibleTeachers(model, proctor, course) {
   let courses = new Set(model.allCourses);
   if (proctor) {
-    courses = intersection(courses, model.coursesByProctor[proctor] || new Set());
+    courses = intersection(
+      courses,
+      model.coursesByProctor[proctor] || new Set(),
+    );
   }
   if (course) {
     courses = intersection(courses, new Set([course]));
   }
 
   return [...model.allTeachers]
-    .filter((teacher) => hasIntersection(model.coursesByTeacher[teacher] || new Set(), courses))
+    .filter((teacher) =>
+      hasIntersection(model.coursesByTeacher[teacher] || new Set(), courses),
+    )
     .sort(localeSort);
 }
 
 function getVisibleProctors(model, teacher, course) {
   let courses = new Set(model.allCourses);
   if (teacher) {
-    courses = intersection(courses, model.coursesByTeacher[teacher] || new Set());
+    courses = intersection(
+      courses,
+      model.coursesByTeacher[teacher] || new Set(),
+    );
   }
   if (course) {
     courses = intersection(courses, new Set([course]));
   }
 
   return [...model.allProctors]
-    .filter((proctor) => hasIntersection(model.coursesByProctor[proctor] || new Set(), courses))
+    .filter((proctor) =>
+      hasIntersection(model.coursesByProctor[proctor] || new Set(), courses),
+    )
     .sort(localeSort);
 }
 
 function getVisibleCourses(model, teacher, proctor) {
   let courses = new Set(model.allCourses);
   if (teacher) {
-    courses = intersection(courses, model.coursesByTeacher[teacher] || new Set());
+    courses = intersection(
+      courses,
+      model.coursesByTeacher[teacher] || new Set(),
+    );
   }
   if (proctor) {
-    courses = intersection(courses, model.coursesByProctor[proctor] || new Set());
+    courses = intersection(
+      courses,
+      model.coursesByProctor[proctor] || new Set(),
+    );
   }
 
   return [...courses]
-    .sort((left, right) => localeSort(model.courseTitles[left] || left, model.courseTitles[right] || right))
+    .sort((left, right) =>
+      localeSort(
+        model.courseTitles[left] || left,
+        model.courseTitles[right] || right,
+      ),
+    )
     .map((course) => ({
       code: course,
       title: model.courseTitles[course] || course,
@@ -368,27 +412,44 @@ function sanitizeFilters() {
   while (changed) {
     changed = false;
 
-    const teachers = getVisibleTeachers(state.model, state.proctor, state.course);
+    const teachers = getVisibleTeachers(
+      state.model,
+      state.proctor,
+      state.course,
+    );
     if (state.teacher && !teachers.includes(state.teacher)) {
       state.teacher = null;
       changed = true;
     }
 
-    const proctors = getVisibleProctors(state.model, state.teacher, state.course);
+    const proctors = getVisibleProctors(
+      state.model,
+      state.teacher,
+      state.course,
+    );
     if (state.proctor && !proctors.includes(state.proctor)) {
       state.proctor = null;
       changed = true;
     }
 
-    const courses = getVisibleCourses(state.model, state.teacher, state.proctor);
-    if (state.course && !courses.some((course) => course.code === state.course)) {
+    const courses = getVisibleCourses(
+      state.model,
+      state.teacher,
+      state.proctor,
+    );
+    if (
+      state.course &&
+      !courses.some((course) => course.code === state.course)
+    ) {
       state.course = null;
       changed = true;
     }
   }
 
   state.options = {
-    rooms: Object.keys(state.roomsConfig).filter((name) => name !== LOCAL_PLACEHOLDER).sort(localeSort),
+    rooms: Object.keys(state.roomsConfig)
+      .filter((name) => name !== LOCAL_PLACEHOLDER)
+      .sort(localeSort),
     teachers: getVisibleTeachers(state.model, state.proctor, state.course),
     proctors: getVisibleProctors(state.model, state.teacher, state.course),
     courses: getVisibleCourses(state.model, state.teacher, state.proctor),
@@ -475,7 +536,10 @@ function updateLayoutFromControls() {
   };
 
   if (nextMiddle && !previousMiddle) {
-    const totalCols = Math.max(1, state.layout.totalCols || state.layout.leftCols);
+    const totalCols = Math.max(
+      1,
+      state.layout.totalCols || state.layout.leftCols,
+    );
     nextLayout.leftCols = Math.ceil(totalCols / 2);
     nextLayout.rightCols = Math.floor(totalCols / 2);
     nextLayout.rightRows = nextLayout.leftRows;
@@ -587,7 +651,9 @@ function clickSeat(index) {
     if (seat.blocked && seat.name.trim()) {
       const candidates = state.plan.seats.filter(
         (candidate) =>
-          candidate.index !== index && !candidate.blocked && !candidate.name.trim(),
+          candidate.index !== index &&
+          !candidate.blocked &&
+          !candidate.name.trim(),
       );
       if (candidates.length) {
         const destination = randomItem(candidates);
@@ -693,12 +759,18 @@ function exportPlanAsPng() {
   const margin = 56;
   const titleHeight = 150;
 
-  const leftWidth = layout.leftCols * cellWidth + Math.max(0, layout.leftCols - 1) * gap;
-  const rightWidth = layout.rightCols * cellWidth + Math.max(0, layout.rightCols - 1) * gap;
-  const gridWidth = layout.middle && layout.rightCols > 0
-    ? leftWidth + AISLE_GAP + rightWidth
-    : leftWidth;
-  const gridRows = Math.max(layout.leftRows, layout.middle ? layout.rightRows : 0);
+  const leftWidth =
+    layout.leftCols * cellWidth + Math.max(0, layout.leftCols - 1) * gap;
+  const rightWidth =
+    layout.rightCols * cellWidth + Math.max(0, layout.rightCols - 1) * gap;
+  const gridWidth =
+    layout.middle && layout.rightCols > 0
+      ? leftWidth + AISLE_GAP + rightWidth
+      : leftWidth;
+  const gridRows = Math.max(
+    layout.leftRows,
+    layout.middle ? layout.rightRows : 0,
+  );
   const gridHeight = gridRows * cellHeight + Math.max(0, gridRows - 1) * gap;
 
   const canvas = document.createElement("canvas");
@@ -723,9 +795,10 @@ function exportPlanAsPng() {
 
   const top = margin + titleHeight;
   plan.seats.forEach((seat) => {
-    const x = seat.section === "left"
-      ? margin + seat.col * (cellWidth + gap)
-      : margin + leftWidth + AISLE_GAP + seat.col * (cellWidth + gap);
+    const x =
+      seat.section === "left"
+        ? margin + seat.col * (cellWidth + gap)
+        : margin + leftWidth + AISLE_GAP + seat.col * (cellWidth + gap);
     const y = top + seat.row * (cellHeight + gap);
 
     const seatState = seatVisualState(seat);
@@ -759,7 +832,12 @@ function exportPlanAsPng() {
 
   context.fillStyle = "#6f5521";
   context.font = '700 24px "Avenir Next", "Gill Sans", sans-serif';
-  drawCenteredCanvasText(context, "ARRIÈRE", canvas.width / 2, canvas.height - 28);
+  drawCenteredCanvasText(
+    context,
+    "ARRIÈRE",
+    canvas.width / 2,
+    canvas.height - 28,
+  );
 
   const link = document.createElement("a");
   link.href = canvas.toDataURL("image/png");
@@ -803,7 +881,12 @@ function drawRoundedRect(context, x, y, width, height, radius, fill, stroke) {
   context.lineTo(x + width - radius, y);
   context.quadraticCurveTo(x + width, y, x + width, y + radius);
   context.lineTo(x + width, y + height - radius);
-  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.quadraticCurveTo(
+    x + width,
+    y + height,
+    x + width - radius,
+    y + height,
+  );
   context.lineTo(x + radius, y + height);
   context.quadraticCurveTo(x, y + height, x, y + height - radius);
   context.lineTo(x, y + radius);
@@ -816,21 +899,14 @@ function drawRoundedRect(context, x, y, width, height, radius, fill, stroke) {
   context.stroke();
 }
 
-function setStatus(message, kind = "") {
-  if (!elements.statusBadge) {
-    return;
-  }
-  elements.statusBadge.textContent = message;
-  elements.statusBadge.className = "status-badge";
-  if (kind === "ready") {
-    elements.statusBadge.classList.add("is-ready");
-  }
-  if (kind === "error") {
-    elements.statusBadge.classList.add("is-error");
-  }
-}
-
-function setSelectOptions(select, items, placeholder, selectedValue, getLabel, getValue) {
+function setSelectOptions(
+  select,
+  items,
+  placeholder,
+  selectedValue,
+  getLabel,
+  getValue,
+) {
   select.innerHTML = "";
 
   const placeholderOption = document.createElement("option");
@@ -957,7 +1033,9 @@ function resetFilters() {
 }
 
 function refreshNamesFromCourse() {
-  state.namesText = state.course ? getStudents(state.course, state.teacher, state.proctor).join("\n") : "";
+  state.namesText = state.course
+    ? getStudents(state.course, state.teacher, state.proctor).join("\n")
+    : "";
   elements.namesInput.value = state.namesText;
   state.blockMode = false;
   state.selectedSourceIndex = null;
@@ -982,14 +1060,12 @@ async function bootstrap() {
   state.dataLoaded = false;
   state.plan = buildEmptyPlan();
   render();
-  setStatus("Verrouillé");
   elements.secretInput.focus();
 }
 
 async function unlockWithSecret(secret) {
   elements.unlockError.textContent = "";
   elements.unlockBtn.disabled = true;
-  setStatus("Déchiffrement…");
 
   try {
     const decryptedData = await decryptEncryptedData(secret);
@@ -997,16 +1073,14 @@ async function unlockWithSecret(secret) {
     elements.secretInput.value = "";
     document.body.classList.remove("is-locked");
     elements.unlockOverlay.hidden = true;
-    setStatus("Données prêtes", "ready");
   } catch (error) {
     console.error(error);
     state.dataLoaded = false;
     state.plan = buildEmptyPlan();
     render();
     elements.unlockError.textContent = error.message.includes("absent")
-      ? "Le fichier data/encrypted-data.js doit d'abord être généré."
-      : "Code secret invalide ou données chiffrées incompatibles.";
-    setStatus("Accès refusé", "error");
+      ? "Fichier de données introuvable"
+      : "Code invalide";
   } finally {
     elements.unlockBtn.disabled = false;
   }
@@ -1087,15 +1161,22 @@ elements.blockModeBtn.addEventListener("click", () => {
 });
 
 elements.fullscreenBtn.addEventListener("click", () => {
-  localStorage.setItem("classroom-plan-view", JSON.stringify(serializeProjectionState()));
+  localStorage.setItem(
+    "classroom-plan-view",
+    JSON.stringify(serializeProjectionState()),
+  );
   window.open("./view.html", "_blank", "noopener");
 });
 
 elements.exportBtn.addEventListener("click", exportPlanAsPng);
 elements.roomSelect.addEventListener("change", handleRoomChange);
 elements.middleCheckbox.addEventListener("change", handleLayoutChange);
-[elements.leftRowsInput, elements.leftColsInput, elements.rightRowsInput, elements.rightColsInput]
-  .forEach((input) => input.addEventListener("change", handleLayoutChange));
+[
+  elements.leftRowsInput,
+  elements.leftColsInput,
+  elements.rightRowsInput,
+  elements.rightColsInput,
+].forEach((input) => input.addEventListener("change", handleLayoutChange));
 
 state.plan = buildEmptyPlan();
 render();
