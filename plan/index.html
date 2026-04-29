@@ -60,7 +60,7 @@
                         ></textarea>
                     </label>
 
-                    <div class="button-row">
+                    <div class="student-actions">
                         <button
                             id="generateBtn"
                             class="primary-button"
@@ -75,9 +75,6 @@
                         >
                             Exclure des places
                         </button>
-                    </div>
-
-                    <div class="button-row">
                         <button
                             id="fullscreenBtn"
                             class="secondary-button"
@@ -90,7 +87,7 @@
                             class="secondary-button"
                             type="button"
                         >
-                            Exporter le plan (PNG)
+                            Exporter le plan
                         </button>
                     </div>
                 </div>
@@ -99,7 +96,7 @@
             <main class="plan-panel">
                 <section class="panel-card data-card">
                     <div class="section-head data-card-head">
-                        <h2>Données</h2>
+                        <h2>Hiver 2026 - Examens de mi-session</h2>
                         <button
                             id="resetFiltersBtn"
                             class="ghost-button"
@@ -130,7 +127,7 @@
                 <section class="panel-card plan-card" id="planCard">
                     <div class="plan-header">
                         <div>
-                            <h2>Plan de classe</h2>
+                            <h2>Plan de la classe</h2>
                             <p id="planSubtitle" class="plan-subtitle">
                                 Aucun cours sélectionné
                             </p>
@@ -153,11 +150,22 @@
                         ARRIÈRE
                     </div>
 
+                    <div class="plan-instructions-title">
+                        <h2>Fonctionnement</h2>
+                    </div>
+
                     <p class="plan-help">
-                        En mode normal, cliquez un étudiant pour le sélectionner
-                        puis cliquez une autre place pour le déplacer. En mode
-                        exclusion, cliquez une place pour la bloquer ou la
-                        libérer.
+                        Cliquez sur un étudiant pour le sélectionner puis
+                        cliquez sur une autre place pour le déplacer. Si la
+                        destination est déjà occupée, l'étudiant qui s'y trouve
+                        sera déplacé aléatoirement vers une autre place libre.
+                    </p>
+
+                    <p class="plan-help">
+                        En mode exclusion, cliquez sur une place pour empêcher
+                        son utilisation. Si la place est déjà occupée,
+                        l'étudiant qui s'y trouve sera déplacé aléatoirement
+                        vers une autre place libre.
                     </p>
                 </section>
             </main>
@@ -167,8 +175,8 @@
                     <div class="section-head">
                         <h2>Disposition</h2>
                         <p class="section-meta">
-                            Les changements régénèrent immédiatement le plan
-                            courant.
+                            Les changements à la configuration de la classe
+                            regénèrent un nouveau plan.
                         </p>
                     </div>
                 </div>
