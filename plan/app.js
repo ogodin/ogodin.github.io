@@ -596,11 +596,31 @@ function buildEmptyPlan() {
   };
 }
 
-function generatePlan() {
+function seatKey(seat) {
+  return `${seat.section}:${seat.row}:${seat.col}`;
+}
+
+function blockedSeatKeys() {
+  return new Set(
+    (state.plan?.seats || [])
+      .filter((seat) => seat.blocked)
+      .map(seatKey),
+  );
+}
+
+function generatePlan({ preserveBlocked = true } = {}) {
+  const blockedKeys = preserveBlocked ? blockedSeatKeys() : new Set();
   const plan = buildEmptyPlan();
   const names = getCurrentNames();
   const shuffled = [...names];
-  const shuffledSeatIndexes = plan.seats.map((seat) => seat.index);
+
+  plan.seats.forEach((seat) => {
+    seat.blocked = blockedKeys.has(seatKey(seat));
+  });
+
+  const shuffledSeatIndexes = plan.seats
+    .filter((seat) => !seat.blocked)
+    .map((seat) => seat.index);
   shuffle(shuffled);
   shuffle(shuffledSeatIndexes);
 
@@ -611,7 +631,7 @@ function generatePlan() {
     }
     plan.seats[seatIndex].name = name;
   });
-  plan.overflowCount = Math.max(0, names.length - plan.seatCount);
+  plan.overflowCount = Math.max(0, names.length - shuffledSeatIndexes.length);
 
   state.plan = plan;
   state.selectedSourceIndex = null;
@@ -1052,7 +1072,7 @@ async function loadDataSources({ surveillanceText, teachersText, roomsData }) {
   state.course = null;
   state.namesText = "";
   elements.namesInput.value = "";
-  generatePlan();
+  generatePlan({ preserveBlocked: false });
   render();
 }
 
@@ -1088,13 +1108,13 @@ async function unlockWithSecret(secret) {
 
 function handleRoomChange() {
   applyRoomConfiguration(elements.roomSelect.value || LOCAL_PLACEHOLDER);
-  generatePlan();
+  generatePlan({ preserveBlocked: false });
   render();
 }
 
 function handleLayoutChange() {
   updateLayoutFromControls();
-  generatePlan();
+  generatePlan({ preserveBlocked: false });
   render();
 }
 
