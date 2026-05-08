@@ -3,12 +3,21 @@ const ALL_TEACHERS_PLACEHOLDER = "— Tous les enseignants —";
 const ALL_PROCTORS_PLACEHOLDER = "— Tous les surveillants —";
 const COURSE_PLACEHOLDER = "— Choisir un cours —";
 const AISLE_GAP = 42;
-const REQUIRED_ENCRYPTED_DATA_VERSION = 1;
+const REQUIRED_ENCRYPTED_DATA_VERSION = 3;
+const DEFAULT_LAYOUT = {
+  room: LOCAL_PLACEHOLDER,
+  leftRows: 4,
+  leftCols: 8,
+  middle: false,
+  rightRows: 0,
+  rightCols: 0,
+};
 
 const state = {
   dataLoaded: false,
   sourceData: {
     surveillanceText: "",
+    examsText: "",
     teachersText: "",
     roomsData: {},
   },
@@ -18,14 +27,7 @@ const state = {
   proctor: null,
   course: null,
   namesText: "",
-  layout: normalizeLayout({
-    room: LOCAL_PLACEHOLDER,
-    leftRows: 4,
-    leftCols: 8,
-    middle: false,
-    rightRows: 0,
-    rightCols: 0,
-  }),
+  layout: normalizeLayout(DEFAULT_LAYOUT),
   options: {
     rooms: [],
     teachers: [],
@@ -70,6 +72,20 @@ function normalizeCourseCode(code) {
   return (code || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
 }
 
+function normalizeGroupNumber(group) {
+  const value = String(group || "").trim();
+  return value.replace(/^0+/, "") || value;
+}
+
+function courseKey(code, group) {
+  const normalizedCode = normalizeCourseCode(code);
+  if (!normalizedCode) {
+    return "";
+  }
+  const normalizedGroup = normalizeGroupNumber(group);
+  return normalizedGroup ? `${normalizedCode}::${normalizedGroup}` : normalizedCode;
+}
+
 function base64ToBytes(value) {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
@@ -104,13 +120,11 @@ async function deriveDataKey(secret, salt, iterations) {
 
 async function decryptEncryptedData(secret) {
   const encryptedData = window.CLASSROOM_PLAN_ENCRYPTED_DATA;
-  if (
-    !encryptedData ||
-    encryptedData.version !== REQUIRED_ENCRYPTED_DATA_VERSION
-  ) {
-    throw new Error(
-      "Le fichier de données chiffrées est absent ou incompatible.",
-    );
+  if (!encryptedData) {
+    throw new Error("Le fichier de données chiffrées est absent.");
+  }
+  if (encryptedData.version !== REQUIRED_ENCRYPTED_DATA_VERSION) {
+    throw new Error("Le fichier de données chiffrées est incompatible.");
   }
 
   if (!window.crypto?.subtle) {
@@ -226,81 +240,188 @@ function loadRoomConfigurations(data) {
   return configurations;
 }
 
-function buildModel(surveillanceText, teachersText) {
-  const surveillanceRows = parseDelimited(surveillanceText);
-  const teacherRows = parseDelimited(teachersText);
+function setCourseTitle(courseTitles, key, title) {
+  if (!title) {
+    return;
+  }
+  if (!courseTitles[key] || title.length >= courseTitles[key].length) {
+    courseTitles[key] = title;
+  }
+}
 
-  const data = {};
-  const teacherData = {};
-  const courseTitles = {};
+function roomNameFromExamLocal(value) {
+  const local = String(value || "").trim();
+  const match = local.match(/^SC\s*0*(.+)$/i);
+  return match ? match[1] : local;
+}
+
+function normalizePersonPart(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z-]/g, "")
+    .toLowerCase();
+}
+
+function personLookupKey(name) {
+  const [lastName, firstNames = ""] = String(name || "").split(",");
+  const firstInitial = normalizePersonPart(firstNames).charAt(0);
+  const normalizedLastName = normalizePersonPart(lastName);
+  return normalizedLastName && firstInitial
+    ? `${normalizedLastName}|${firstInitial}`
+    : "";
+}
+
+function isAbbreviatedPersonName(name) {
+  const [, firstNames = ""] = String(name || "").split(",");
+  return normalizePersonPart(firstNames).length === 1;
+}
+
+function addFullNameCandidate(index, name) {
+  const trimmed = String(name || "").replace(/\s+/g, " ").trim();
+  if (!trimmed || isAbbreviatedPersonName(trimmed)) {
+    return;
+  }
+
+  const key = personLookupKey(trimmed);
+  if (!key) {
+    return;
+  }
+
+  if (!index[key]) {
+    index[key] = new Set();
+  }
+  index[key].add(trimmed);
+}
+
+function buildFullNameIndex(surveillanceRows, examRows) {
+  const index = {};
 
   surveillanceRows.forEach((row) => {
-    const proctor = (row.NomPrenomProf || "").trim();
-    const courseCode = normalizeCourseCode(row.NumeroCours || "");
+    addFullNameCandidate(index, row.NomPrenomProf);
+  });
+
+  examRows.forEach((row) => {
+    addFullNameCandidate(index, row.NomEnseignant);
+    String(row.NomTitulaire || "")
+      .split(/[\n;]/)
+      .forEach((name) => addFullNameCandidate(index, name));
+  });
+
+  return index;
+}
+
+function expandAbbreviatedPersonName(name, fullNameIndex) {
+  const trimmed = String(name || "").trim();
+  if (!isAbbreviatedPersonName(trimmed)) {
+    return trimmed;
+  }
+
+  const candidates = fullNameIndex[personLookupKey(trimmed)] || new Set();
+  return candidates.size === 1 ? [...candidates][0] : trimmed;
+}
+
+function buildModel(surveillanceText, examsText, teachersText) {
+  const surveillanceRows = parseDelimited(surveillanceText);
+  const examRows = parseDelimited(examsText);
+  const teacherRows = parseDelimited(teachersText);
+  const fullNameIndex = buildFullNameIndex(surveillanceRows, examRows);
+
+  const studentsByGroup = {};
+  const groupKeysByCourse = {};
+  const teacherData = {};
+  const courseTitles = {};
+  const courseGroups = {};
+  const teacherGroups = {};
+  const proctorGroups = {};
+  const coursesByProctor = {};
+  const proctorsByCourse = {};
+  const roomsByGroup = {};
+
+  surveillanceRows.forEach((row) => {
+    const course = normalizeCourseCode(row.NumeroCours || "");
+    const key = courseKey(row.NumeroCours || "", row.NumeroGroupe || "");
+    const group = normalizeGroupNumber(row.NumeroGroupe || "");
     const courseTitle = (row.TitreCours || "").trim();
     const student = (row.NomPrenomEtudiant || "").trim();
 
-    if (!courseCode || !proctor || !student) {
+    if (!key || !student) {
       return;
     }
 
-    if (
-      !courseTitles[courseCode] ||
-      courseTitle.length >= courseTitles[courseCode].length
-    ) {
-      courseTitles[courseCode] = courseTitle;
+    setCourseTitle(courseTitles, course, courseTitle);
+    courseGroups[key] = group;
+    if (!groupKeysByCourse[course]) {
+      groupKeysByCourse[course] = new Set();
+    }
+    groupKeysByCourse[course].add(key);
+    if (!studentsByGroup[key]) {
+      studentsByGroup[key] = [];
+    }
+    studentsByGroup[key].push(student);
+  });
+
+  examRows.forEach((row) => {
+    const course = normalizeCourseCode(row.NoCours || "");
+    const key = courseKey(row.NoCours || "", row.NoGroupe || "");
+    const group = normalizeGroupNumber(row.NoGroupe || "");
+    const proctor = (row.NomEnseignant || "").trim();
+    const room = roomNameFromExamLocal(row.NoLocal || "");
+
+    if (!key || !proctor) {
+      return;
     }
 
-    if (!data[proctor]) {
-      data[proctor] = {};
+    courseGroups[key] = group;
+    roomsByGroup[key] = room;
+
+    if (proctor) {
+      if (!coursesByProctor[proctor]) {
+        coursesByProctor[proctor] = new Set();
+      }
+      coursesByProctor[proctor].add(course);
+      if (!proctorsByCourse[course]) {
+        proctorsByCourse[course] = new Set();
+      }
+      proctorsByCourse[course].add(proctor);
+      if (!proctorGroups[proctor]) {
+        proctorGroups[proctor] = new Set();
+      }
+      proctorGroups[proctor].add(key);
     }
-    if (!data[proctor][courseCode]) {
-      data[proctor][courseCode] = [];
-    }
-    data[proctor][courseCode].push(student);
+
   });
 
   teacherRows.forEach((row) => {
-    const courseCode = normalizeCourseCode(
+    const course = normalizeCourseCode(
       row["Numéro du cours"] || row["Numero du cours"] || "",
     );
     const courseTitle = (row["Titre du cours"] || "").trim();
+    const group = normalizeGroupNumber(row.Numéro || row.Numero || "");
+    const key = courseKey(course, group);
     const titulaires = (row.Titulaires || "").trim();
 
-    if (!courseCode || !titulaires) {
+    if (!key || !titulaires) {
       return;
     }
 
-    if (
-      !courseTitles[courseCode] ||
-      courseTitle.length >= courseTitles[courseCode].length
-    ) {
-      courseTitles[courseCode] = courseTitle;
-    }
+    setCourseTitle(courseTitles, course, courseTitle);
+    courseGroups[key] = group;
 
     titulaires
-      .split(";")
-      .map((name) => name.trim())
+      .split(/[\n;]/)
+      .map((name) => expandAbbreviatedPersonName(name, fullNameIndex))
       .filter(Boolean)
       .forEach((teacher) => {
         if (!teacherData[teacher]) {
           teacherData[teacher] = new Set();
         }
-        teacherData[teacher].add(courseCode);
+        teacherData[teacher].add(course);
+        if (!teacherGroups[teacher]) {
+          teacherGroups[teacher] = new Set();
+        }
+        teacherGroups[teacher].add(key);
       });
-  });
-
-  const coursesByProctor = {};
-  const proctorsByCourse = {};
-  Object.entries(data).forEach(([proctor, courses]) => {
-    const courseSet = new Set(Object.keys(courses));
-    coursesByProctor[proctor] = courseSet;
-    courseSet.forEach((course) => {
-      if (!proctorsByCourse[course]) {
-        proctorsByCourse[course] = new Set();
-      }
-      proctorsByCourse[course].add(proctor);
-    });
   });
 
   const coursesByTeacher = {};
@@ -317,19 +438,21 @@ function buildModel(surveillanceText, teachersText) {
 
   const allProctors = new Set(Object.keys(coursesByProctor));
   const allTeachers = new Set(Object.keys(coursesByTeacher));
-  const allCourses = new Set([
-    ...Object.keys(proctorsByCourse),
-    ...Object.keys(teachersByCourse),
-  ]);
+  const allCourses = new Set(Object.keys(groupKeysByCourse));
 
   return {
-    data,
+    studentsByGroup,
+    groupKeysByCourse,
     teacherData,
     courseTitles,
+    courseGroups,
+    teacherGroups,
+    proctorGroups,
     coursesByProctor,
     proctorsByCourse,
     coursesByTeacher,
     teachersByCourse,
+    roomsByGroup,
     allProctors,
     allTeachers,
     allCourses,
@@ -337,40 +460,52 @@ function buildModel(surveillanceText, teachersText) {
 }
 
 function getVisibleTeachers(model, proctor, course) {
-  let courses = new Set(model.allCourses);
-  if (proctor) {
-    courses = intersection(
-      courses,
-      model.coursesByProctor[proctor] || new Set(),
-    );
-  }
-  if (course) {
-    courses = intersection(courses, new Set([course]));
-  }
+  const courses = course
+    ? new Set([course])
+    : new Set(model.allCourses);
 
   return [...model.allTeachers]
-    .filter((teacher) =>
-      hasIntersection(model.coursesByTeacher[teacher] || new Set(), courses),
-    )
+    .filter((teacher) => {
+      if (!hasIntersection(model.coursesByTeacher[teacher] || new Set(), courses)) {
+        return false;
+      }
+      if (!proctor) {
+        return true;
+      }
+      return [...courses].some(
+        (candidateCourse) => resolveGroupKeysForModel(
+          model,
+          candidateCourse,
+          teacher,
+          proctor,
+        ).length > 0,
+      );
+    })
     .sort(localeSort);
 }
 
 function getVisibleProctors(model, teacher, course) {
-  let courses = new Set(model.allCourses);
-  if (teacher) {
-    courses = intersection(
-      courses,
-      model.coursesByTeacher[teacher] || new Set(),
-    );
-  }
-  if (course) {
-    courses = intersection(courses, new Set([course]));
-  }
+  const courses = course
+    ? new Set([course])
+    : new Set(model.allCourses);
 
   return [...model.allProctors]
-    .filter((proctor) =>
-      hasIntersection(model.coursesByProctor[proctor] || new Set(), courses),
-    )
+    .filter((proctor) => {
+      if (!hasIntersection(model.coursesByProctor[proctor] || new Set(), courses)) {
+        return false;
+      }
+      if (!teacher) {
+        return true;
+      }
+      return [...courses].some(
+        (candidateCourse) => resolveGroupKeysForModel(
+          model,
+          candidateCourse,
+          teacher,
+          proctor,
+        ).length > 0,
+      );
+    })
     .sort(localeSort);
 }
 
@@ -398,8 +533,12 @@ function getVisibleCourses(model, teacher, proctor) {
     )
     .map((course) => ({
       code: course,
-      title: model.courseTitles[course] || course,
+      title: courseLabel(model, course),
     }));
+}
+
+function courseLabel(model, course) {
+  return model.courseTitles[course] || course;
 }
 
 function sanitizeFilters() {
@@ -461,22 +600,89 @@ function getStudents(course, teacher, proctor) {
     return [];
   }
 
-  let students = [];
+  return resolveGroupKeys(course, teacher, proctor)
+    .flatMap((key) => state.model.studentsByGroup?.[key] || [])
+    .sort(localeSort);
+}
+
+function firstSortedSetValue(values) {
+  return [...(values || new Set())].sort(localeSort)[0] || null;
+}
+
+function resolveGroupKeysForModel(model, course, teacher = null, proctor = null) {
+  let keys = new Set(model?.groupKeysByCourse?.[course] || []);
+  if (teacher) {
+    keys = intersection(keys, model.teacherGroups?.[teacher] || new Set());
+  }
   if (proctor) {
-    students = [...(state.model.data[proctor]?.[course] || [])];
-  } else {
-    Object.values(state.model.data).forEach((courses) => {
-      if (courses[course]) {
-        students.push(...courses[course]);
-      }
-    });
+    keys = intersection(keys, model.proctorGroups?.[proctor] || new Set());
+  }
+  return [...keys];
+}
+
+function resolveGroupKeys(course, teacher = state.teacher, proctor = state.proctor) {
+  return resolveGroupKeysForModel(state.model, course, teacher, proctor);
+}
+
+function selectCourseAssignments() {
+  if (!state.course || !state.model) {
+    state.teacher = null;
+    state.proctor = null;
+    return;
   }
 
-  if (teacher && !(state.model.teacherData[teacher] || new Set()).has(course)) {
-    return [];
+  const teachers = [...(state.model.teachersByCourse[state.course] || new Set())].sort(localeSort);
+  const proctors = [...(state.model.proctorsByCourse[state.course] || new Set())].sort(localeSort);
+
+  if (state.teacher && !teachers.includes(state.teacher)) {
+    state.teacher = null;
+  }
+  if (!state.teacher && teachers.length === 1) {
+    state.teacher = teachers[0];
   }
 
-  return students.sort(localeSort);
+  if (state.proctor && !proctors.includes(state.proctor)) {
+    state.proctor = null;
+  }
+  if (!state.proctor && proctors.length === 1) {
+    state.proctor = proctors[0];
+  }
+}
+
+function applyAutomaticSelections() {
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    sanitizeFilters();
+
+    const previousTeacher = state.teacher;
+    const previousProctor = state.proctor;
+    const previousCourse = state.course;
+
+    if (!state.course && state.options.courses.length === 1) {
+      state.course = state.options.courses[0].code;
+    }
+
+    if (state.course) {
+      selectCourseAssignments();
+    }
+
+    if (!state.teacher && state.options.teachers.length === 1) {
+      state.teacher = state.options.teachers[0];
+    }
+
+    if (!state.proctor && state.options.proctors.length === 1) {
+      state.proctor = state.options.proctors[0];
+    }
+
+    changed =
+      previousTeacher !== state.teacher ||
+      previousProctor !== state.proctor ||
+      previousCourse !== state.course;
+  }
+
+  sanitizeFilters();
 }
 
 function computeTotalColumns(layout) {
@@ -520,6 +726,42 @@ function applyRoomConfiguration(roomName) {
     rightRows: config.milieu ? config.droite[0] : 0,
     rightCols: config.milieu ? config.droite[1] : 0,
   });
+}
+
+function roomForCourse(course) {
+  const groupKeys = resolveGroupKeys(course);
+  const rooms = [
+    ...new Set(
+      groupKeys
+        .map((key) => state.model?.roomsByGroup?.[key] || "")
+        .filter(Boolean),
+    ),
+  ];
+
+  if (rooms.length !== 1) {
+    return LOCAL_PLACEHOLDER;
+  }
+
+  const room = rooms[0];
+  if (room && state.roomsConfig[room]) {
+    return room;
+  }
+  return state.roomsConfig.GYM ? "GYM" : LOCAL_PLACEHOLDER;
+}
+
+function applyRoomFromSelectedCourse() {
+  if (!state.course) {
+    return;
+  }
+
+  const nextRoom = roomForCourse(state.course);
+  if (nextRoom === state.layout.room) {
+    return;
+  }
+
+  applyRoomConfiguration(nextRoom);
+  state.selectedSourceIndex = null;
+  state.plan = buildEmptyPlan();
 }
 
 function updateLayoutFromControls() {
@@ -766,7 +1008,7 @@ function serializeProjectionState() {
 
 function courseSubtitle() {
   return state.course
-    ? state.model?.courseTitles[state.course] || state.course
+    ? courseLabel(state.model, state.course)
     : "Aucun cours sélectionné";
 }
 
@@ -1047,6 +1289,7 @@ function resetFilters() {
   state.namesText = "";
   state.blockMode = false;
   state.selectedSourceIndex = null;
+  state.layout = normalizeLayout(DEFAULT_LAYOUT);
   state.plan = buildEmptyPlan();
   elements.namesInput.value = "";
   render();
@@ -1059,13 +1302,21 @@ function refreshNamesFromCourse() {
   elements.namesInput.value = state.namesText;
   state.blockMode = false;
   state.selectedSourceIndex = null;
+  applyRoomFromSelectedCourse();
   render();
 }
 
-async function loadDataSources({ surveillanceText, teachersText, roomsData }) {
-  state.sourceData = { surveillanceText, teachersText, roomsData };
+async function loadDataSources({ surveillanceText, examsText, teachersText, roomsData }) {
+  const examSourceText = examsText || "";
+  const teacherSourceText = teachersText || "";
+  state.sourceData = {
+    surveillanceText,
+    examsText: examSourceText,
+    teachersText: teacherSourceText,
+    roomsData,
+  };
   state.roomsConfig = loadRoomConfigurations(roomsData);
-  state.model = buildModel(surveillanceText, teachersText);
+  state.model = buildModel(surveillanceText, examSourceText, teacherSourceText);
   state.dataLoaded = true;
   state.teacher = null;
   state.proctor = null;
@@ -1143,19 +1394,19 @@ function randomItem(items) {
 
 elements.teacherSelect.addEventListener("change", () => {
   state.teacher = elements.teacherSelect.value || null;
-  sanitizeFilters();
+  applyAutomaticSelections();
   refreshNamesFromCourse();
 });
 
 elements.proctorSelect.addEventListener("change", () => {
   state.proctor = elements.proctorSelect.value || null;
-  sanitizeFilters();
+  applyAutomaticSelections();
   refreshNamesFromCourse();
 });
 
 elements.courseSelect.addEventListener("change", () => {
   state.course = elements.courseSelect.value || null;
-  sanitizeFilters();
+  applyAutomaticSelections();
   refreshNamesFromCourse();
 });
 
