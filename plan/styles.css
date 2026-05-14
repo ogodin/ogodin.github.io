@@ -567,11 +567,39 @@ button.seat {
 }
 
 .view-header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 18px;
     margin-bottom: 22px;
+}
+
+.mirror-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.mirror-toggle input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
 }
 
 .view-grid {
     min-height: auto;
+    transform-origin: center;
+}
+
+.view-grid.is-mirrored {
+    transform: scaleX(-1);
+}
+
+.view-grid.is-mirrored .seat {
+    transform: scaleX(-1);
 }
 
 @media (max-width: 1100px) {
@@ -626,8 +654,13 @@ button.seat {
     }
 
     .plan-header,
+    .view-header,
     .section-head {
         flex-direction: column;
+    }
+
+    .view-header {
+        align-items: start;
     }
 
     .plan-stats {

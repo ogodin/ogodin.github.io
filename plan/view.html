@@ -10,8 +10,14 @@
         <main class="view-shell">
             <header class="view-header">
                 <!--<p class="eyebrow">Projection</p>-->
-                <h1>Plan de classe</h1>
-                <p id="viewSubtitle" class="view-subtitle"></p>
+                <div>
+                    <h1>Plan de classe</h1>
+                    <p id="viewSubtitle" class="view-subtitle"></p>
+                </div>
+                <label class="mirror-toggle">
+                    <input id="mirrorToggle" type="checkbox" />
+                    <span>Symétrie verticale</span>
+                </label>
             </header>
 
             <div class="orientation-marker">AVANT</div>
@@ -27,6 +33,7 @@
             );
             const subtitle = document.getElementById("viewSubtitle");
             const grid = document.getElementById("viewGrid");
+            const mirrorToggle = document.getElementById("mirrorToggle");
 
             subtitle.textContent =
                 payload.courseTitle || "Aucun cours sélectionné";
@@ -40,6 +47,20 @@
                 cell.style.gridRow = String(seat.row + 1);
                 cell.textContent = seat.name || "";
                 grid.appendChild(cell);
+            });
+
+            const savedMirror = localStorage.getItem(
+                "classroom-plan-view-mirror",
+            );
+            mirrorToggle.checked = savedMirror === "1";
+            grid.classList.toggle("is-mirrored", mirrorToggle.checked);
+
+            mirrorToggle.addEventListener("change", () => {
+                grid.classList.toggle("is-mirrored", mirrorToggle.checked);
+                localStorage.setItem(
+                    "classroom-plan-view-mirror",
+                    mirrorToggle.checked ? "1" : "0",
+                );
             });
         </script>
     </body>
