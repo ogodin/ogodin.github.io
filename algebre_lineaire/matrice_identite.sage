@@ -1,3 +1,3 @@
-I4 = matrix.identity(3)
+I4 = identity_matrix(4)
 
 show(I4)
