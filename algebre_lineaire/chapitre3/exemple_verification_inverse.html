@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+
+    <script src="https://sagecell.sagemath.org/static/embedded_sagecell.js"></script>
+
+    <script>
+    async function init() {
+
+        const code = await fetch("exemple_verification_inverse.sage").then(r => r.text());
+
+        document.getElementById("sagecell").textContent = code;
+
+        sagecell.makeSagecell({
+            inputLocation: "#sagecell",
+            evalButtonText: "Calculer",
+            autoeval: false,
+            hide: ["permalink"]
+        });
+    }
+
+    window.onload = init;
+    </script>
+</head>
+
+<body>
+
+<div id="sagecell"></div>
+
+</body>
+</html>
