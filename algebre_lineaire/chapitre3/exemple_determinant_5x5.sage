@@ -4,4 +4,4 @@ A = matrix([[2,  0, -1,  3,  4],
             [5,  1,  0, -3,  2],
             [-2,  4,  1,  0,  3]])
 
-show(A.det())
+show(A.determinant())
